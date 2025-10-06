@@ -29,8 +29,6 @@ public class TwitterService {
         Map<String, Object> responseMap = (Map<String, Object>) JSON.deserializeUntyped(res.getBody());
         Map<String, Object> data = (Map<String, Object>) responseMap.get('data');
         tweet.Tweet_ID__c = (String) data.get('id');
-        String createdAt = (String) data.get('created_at');
-        tweet.Tweet_Date__c = DateTime.valueOfGmt(createdAt);
         update tweet;
         System.debug('Create Tweet Response: ' + res.getBody());
 
