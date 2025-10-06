@@ -19,35 +19,6 @@ public class TwitterService {
 
         return req;
     }
-
-    public static Map<String, Object> createTweetAnd(String text) {
-        try{
-        String url = API_BASE + '/tweets';
-        Http http = new Http();
-        Map<String, Object> body = new Map<String, Object>{ 'text' => text };
-        HttpRequest req = buildRequest('POST', url, body);
-
-        HttpResponse res = http.send(req);
-        System.debug('Create Tweet Response: ' + res.getBody());
-        
-        if (res.getStatusCode() != 201 && res.getStatusCode() != 200) {
-            throw new CalloutException('Error creating tweet: ' + res.getBody());
-        }
-
-        Map<String, Object> resp = (Map<String, Object>) JSON.deserializeUntyped(res.getBody());
-        Map<String, Object> data = (Map<String, Object>) resp.get('data');
-        String tweetId = (String) data.get('id');
-        String createdAt = (String) data.get('created_at');
-        Map<String, Object> result = new Map<String, Object>();
-        result.put('id', tweetId);
-        result.put('created_at', createdAt);
-        return result;
-        }
-        catch(Exception ex){
-            LogService.logError(ex, 'Failed to create tweet', 'TwitterService');
-            throw ex;
-        }
-    }
     public static void createTweet(String text, Tweet__c tweet) {
         try{
         String url = API_BASE + '/tweets';
