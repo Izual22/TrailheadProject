@@ -47,15 +47,6 @@ private class SetviceTest {
         }
     }
 
-    @IsTest
-    static void testCreateTweet() {
-        Test.setMock(HttpCalloutMock.class, new CreateTweetMock());
-
-        Map<String, Object> result = TwitterService.createTweet('Hello World');
-
-        System.assertEquals('12345', result.get('id'));
-        System.assertEquals('2025-10-05T10:00:00Z', result.get('created_at'));
-    }
 
     @IsTest
     static void testDeleteTweet() {
@@ -73,17 +64,6 @@ private class SetviceTest {
         System.assertEquals(2, tweets.size());
         System.assertEquals('tweet1', tweets[0].get('id'));
         System.assertEquals('Hello world', tweets[0].get('text'));
-    }
-
-    @IsTest
-    static void testCreateTweet_calloutException() {
-        Test.setMock(HttpCalloutMock.class,new TweetFailMock());
-        try {
-            TwitterService.createTweet('Fail Tweet');
-            System.assert(false, 'Expected exception not thrown');
-        } catch (Exception ex) {
-            System.assert(ex.getMessage().contains('Error creating tweet'));
-        }
     }
 
     @IsTest

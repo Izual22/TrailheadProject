@@ -104,11 +104,9 @@ public with sharing class TweetController {
         Tweet__c tweet = [
             SELECT Id, Tweet_ID__c
             FROM Tweet__c
-            WHERE Tweet_ID__c = :tweetId
+            WHERE Id = :tweetId
             LIMIT 1
         ];
-
-        TwitterService.deleteTweet(tweet.Tweet_ID__c);
         delete tweet;
     }
 
