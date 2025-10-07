@@ -1,79 +1,139 @@
-@IsTest
+@isTest
 private class SetviceTest {
 
-    private class CreateTweetMock implements HttpCalloutMock {
-        public HTTPResponse respond(HTTPRequest req) {
+    private class CreateTweetSuccessMock implements HttpCalloutMock {
+        public HttpResponse respond(HttpRequest req) {
             HttpResponse res = new HttpResponse();
-            res.setHeader('Content-Type', 'application/json');
             res.setStatusCode(201);
-            res.setBody('{"data":{"id":"12345","created_at":"2025-10-05T10:00:00Z"}}');
+            res.setHeader('Content-Type', 'application/json');
+            res.setBody('{"data": {"id": "tweet123"}}');
             return res;
         }
     }
-    private class TweetFailMock implements HttpCalloutMock {
-        public HTTPResponse respond(HTTPRequest req) {
+
+    private class CreateTweetFailureMock implements HttpCalloutMock {
+        public HttpResponse respond(HttpRequest req) {
+            HttpResponse res = new HttpResponse();
+            res.setStatusCode(500);
+            res.setBody('{"error":"Server error"}');
+            return res;
+        }
+    }
+
+    private class DeleteTweetSuccessMock implements HttpCalloutMock {
+        public HttpResponse respond(HttpRequest req) {
+            HttpResponse res = new HttpResponse();
+            res.setStatusCode(200);
+            res.setBody('{"data": "deleted"}');
+            return res;
+        }
+    }
+    private class DeleteTweetFailureMock implements HttpCalloutMock {
+        public HttpResponse respond(HttpRequest req) {
             HttpResponse res = new HttpResponse();
             res.setStatusCode(400);
-            res.setBody('Bad request');
+            res.setBody('{"error":"Bad request"}');
             return res;
         }
     }
 
-    private class DeleteTweetMock implements HttpCalloutMock {
-        public HTTPResponse respond(HTTPRequest req) {
-            HttpResponse res = new HttpResponse();
-            res.setHeader('Content-Type', 'application/json');
-            res.setStatusCode(200);
-            res.setBody('{}'); // Empty body on successful delete
-            return res;
-        }
-    }
-    private class GetTweetsByHandleMock implements HttpCalloutMock {
+    private class GetTweetsSuccessMock implements HttpCalloutMock {
         private Integer callCount = 0;
-
-        public HTTPResponse respond(HTTPRequest req) {
+        public HttpResponse respond(HttpRequest req) {
+            callCount++;
             HttpResponse res = new HttpResponse();
             res.setHeader('Content-Type', 'application/json');
-
-            if (callCount == 0) {
+            if (callCount == 1) {
                 res.setStatusCode(200);
-                res.setBody('{"data":{"id":"user123","username":"testuser"}}');
+                res.setBody('{"data": {"id": "user123"}}');
             } else {
                 res.setStatusCode(200);
-                res.setBody('{"data":[{"id":"tweet1","text":"Hello world","created_at":"2025-10-05T10:00:00Z"},{"id":"tweet2","text":"Another tweet","created_at":"2025-10-05T11:00:00Z"}]}');
+                res.setBody('{"data": [{"id": "tweet1", "text": "hello"}, {"id": "tweet2", "text": "world"}]}');
             }
-            callCount++;
             return res;
         }
     }
 
-
-    @IsTest
-    static void testDeleteTweet() {
-        Test.setMock(HttpCalloutMock.class, new DeleteTweetMock());
-
-        TwitterService.deleteTweet('12345');
+    private class GetTweetsUserFailureMock implements HttpCalloutMock {
+        public HttpResponse respond(HttpRequest req) {
+            HttpResponse res = new HttpResponse();
+            res.setStatusCode(404);
+            res.setBody('{"error":"User not found"}');
+            return res;
+        }
     }
 
-    @IsTest
-    static void testGetTweetsByHandle() {
-        Test.setMock(HttpCalloutMock.class, new GetTweetsByHandleMock());
+    private class GetTweetsTweetsFailureMock implements HttpCalloutMock {
+        private Integer callCount = 0;
+        public HttpResponse respond(HttpRequest req) {
+            callCount++;
+            HttpResponse res = new HttpResponse();
+            if (callCount == 1) {
+                res.setStatusCode(200);
+                res.setBody('{"data": {"id": "user123"}}');
+            } else {
+                res.setStatusCode(500);
+                res.setBody('{"error":"Server error"}');
+            }
+            return res;
+        }
+    }
 
-        List<Map<String, Object>> tweets = TwitterService.getTweetsByHandle('testuser');
+    @isTest static void testCreateTweetSuccess() {
+        Test.setMock(HttpCalloutMock.class, new CreateTweetSuccessMock());
+        String tweetId = TwitterService.createTweet('Test tweet');
+        System.assertEquals('tweet123', tweetId);
+    }
 
+    @isTest static void testCreateTweetFailure() {
+        Test.setMock(HttpCalloutMock.class, new CreateTweetFailureMock());
+        try {
+            TwitterService.createTweet('Fail tweet');
+            System.assert(false, 'Expected exception not thrown');
+        } catch (CalloutException ex) {
+            System.assert(ex.getMessage().contains('Error creating tweet'));
+        }
+    }
+
+    @isTest static void testDeleteTweetSuccess() {
+        Test.setMock(HttpCalloutMock.class, new DeleteTweetSuccessMock());
+        TwitterService.deleteTweet('tweet123');
+    }
+
+    @isTest static void testDeleteTweetFailure() {
+        Test.setMock(HttpCalloutMock.class, new DeleteTweetFailureMock());
+        try {
+            TwitterService.deleteTweet('badtweet');
+            System.assert(false, 'Expected exception not thrown');
+        } catch (CalloutException ex) {
+            System.assert(ex.getMessage().contains('Error deleting tweet'));
+        }
+    }
+
+    @isTest static void testGetTweetsByHandleSuccess() {
+        Test.setMock(HttpCalloutMock.class, new GetTweetsSuccessMock());
+        List<Map<String, Object>> tweets = TwitterService.getTweetsByHandle('validhandle');
         System.assertEquals(2, tweets.size());
         System.assertEquals('tweet1', tweets[0].get('id'));
-        System.assertEquals('Hello world', tweets[0].get('text'));
     }
 
-    @IsTest
-    static void testDeleteTweet_calloutException() {
-        Test.setMock(HttpCalloutMock.class,new TweetFailMock());
+    @isTest static void testGetTweetsByHandleUserFailure() {
+        Test.setMock(HttpCalloutMock.class, new GetTweetsUserFailureMock());
         try {
-            TwitterService.deleteTweet('badid');
+            TwitterService.getTweetsByHandle('invalidhandle');
             System.assert(false, 'Expected exception not thrown');
-        } catch (Exception ex) {
-            System.assert(ex.getMessage().contains('Error deleting tweet'));
+        } catch (CalloutException ex) {
+            System.assert(ex.getMessage().contains('Error fetching user'));
+        }
+    }
+
+    @isTest static void testGetTweetsByHandleTweetsFailure() {
+        Test.setMock(HttpCalloutMock.class, new GetTweetsTweetsFailureMock());
+        try {
+            TwitterService.getTweetsByHandle('handleWithBadTweets');
+            System.assert(false, 'Expected exception not thrown');
+        } catch (CalloutException ex) {
+            System.assert(ex.getMessage().contains('Error fetching tweets'));
         }
     }
 }

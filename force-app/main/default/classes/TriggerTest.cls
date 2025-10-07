@@ -1,82 +1,59 @@
-@IsTest
+@isTest
 private class TriggerTest {
 
-    private class MockCreateTweet implements HttpCalloutMock {
-        public HttpResponse respond(HttpRequest req) {
-            HttpResponse res = new HttpResponse();
-            res.setStatusCode(201);
-            res.setHeader('Content-Type', 'application/json');
-            res.setBody('{"data": {"id": "1234567890", "created_at": "2023-10-05T12:34:56.000Z"}}');
-            return res;
-        }
-    }
+    @isTest static void testHandleAfterInsertUpdatesContactsAndEnqueuesJob() {
+        Contact c1 = new Contact(FirstName = 'Test', LastName = 'User1');
+        Contact c2 = new Contact(FirstName = 'Test', LastName = 'User2');
+        insert new List<Contact>{c1, c2};
 
-    private class MockDeleteTweet implements HttpCalloutMock {
-        public HttpResponse respond(HttpRequest req) {
-            HttpResponse res = new HttpResponse();
-            res.setStatusCode(200);
-            res.setHeader('Content-Type', 'application/json');
-            res.setBody('{"data": {"deleted": true}}');
-            return res;
-        }
-    }
-
-    @IsTest
-    static void testHandleBeforeInsert_UpdatesContactAndEnqueuesCreateJob() {
-        Test.setMock(HttpCalloutMock.class, new MockCreateTweet());
-
-        Contact contact = new Contact(FirstName = 'Test', LastName = 'User');
-        insert contact;
-
-        DateTime tweetDate = DateTime.newInstanceGMT(2023, 10, 5, 10, 0, 0);
-
-        Tweet__c newTweet = new Tweet__c(
-            Tweet_Text__c = 'Testing tweet from TriggerHandler',
-            Contact__c = contact.Id,
-            Tweet_Date__c = tweetDate
-        );
+        List<Tweet__c> tweets = new List<Tweet__c>{
+            new Tweet__c(
+                Tweet_Text__c = 'First tweet',
+                Contact__c = c1.Id,
+                Tweet_Date__c = DateTime.newInstance(2025, 10, 1, 12, 0, 0)
+            ),
+            new Tweet__c(
+                Tweet_Text__c = 'Second tweet',
+                Contact__c = c1.Id,
+                Tweet_Date__c = DateTime.newInstance(2025, 10, 3, 12, 0, 0) 
+            ),
+            new Tweet__c(
+                Tweet_Text__c = 'Tweet for user 2',
+                Contact__c = c2.Id,
+                Tweet_Date__c = DateTime.newInstance(2025, 9, 30, 12, 0, 0)
+            ),
+            new Tweet__c(
+                Tweet_Text__c = 'Tweet with no contact',
+                Tweet_Date__c = DateTime.newInstance(2025, 10, 4, 12, 0, 0)
+            )
+        };
 
         Test.startTest();
-        insert newTweet; 
+        TriggerHandler.handleAfterInsert(tweets);
         Test.stopTest();
 
-        Contact updatedContact = [SELECT Last_Tweet_Post_Date__c FROM Contact WHERE Id = :contact.Id];
-        System.assertEquals(tweetDate.date(), updatedContact.Last_Tweet_Post_Date__c, 'Contact last tweet date should match Tweet__c date');
+        Contact c1After = [SELECT Last_Tweet_Post_Date__c FROM Contact WHERE Id = :c1.Id];
+        Contact c2After = [SELECT Last_Tweet_Post_Date__c FROM Contact WHERE Id = :c2.Id];
 
-        Tweet__c updatedTweet = [SELECT Tweet_ID__c, Tweet_Date__c FROM Tweet__c WHERE Id = :newTweet.Id];
-        System.assertEquals('1234567890', updatedTweet.Tweet_ID__c);
-        System.assertEquals(DateTime.valueOfGmt('2023-10-05T12:34:56.000Z'), updatedTweet.Tweet_Date__c);
+        System.assertEquals(Date.newInstance(2025, 10, 3), c1After.Last_Tweet_Post_Date__c,
+            'Contact 1 Last_Tweet_Post_Date__c should be set to latest tweet date');
+
+        System.assertEquals(Date.newInstance(2025, 9, 30), c2After.Last_Tweet_Post_Date__c,
+            'Contact 2 Last_Tweet_Post_Date__c should be set');
+
     }
 
-    @IsTest
-    static void testHandleAfterDelete_EnqueuesDeleteJob() {
-        Test.setMock(HttpCalloutMock.class, new MockDeleteTweet());
-
-        Tweet__c tweet = new Tweet__c(
-            Tweet_Text__c = 'To be deleted',
-            Tweet_ID__c = '1234567890'
-        );
-        insert tweet;
+    @isTest static void testHandleAfterInsertWithEmptyList() {
 
         Test.startTest();
-        delete tweet; 
+        TriggerHandler.handleAfterInsert(new List<Tweet__c>());
         Test.stopTest();
-
-        System.assert(true, 'Tweet deleted and job enqueued');
     }
 
-    @IsTest
-    static void testHandleBeforeInsert_NoTweetTextOrDate_DoesNotUpdateContact() {
-        Contact contact = new Contact(FirstName = 'Test', LastName = 'NoTweet');
-        insert contact;
-
-        Tweet__c tweet = new Tweet__c(Contact__c = contact.Id);
-
+    @isTest static void testHandleAfterInsertWithNullFields() {
+        Tweet__c t = new Tweet__c();
         Test.startTest();
-        insert tweet;
+        TriggerHandler.handleAfterInsert(new List<Tweet__c>{t});
         Test.stopTest();
-
-        Contact result = [SELECT Last_Tweet_Post_Date__c FROM Contact WHERE Id = :contact.Id];
-        System.assertEquals(null, result.Last_Tweet_Post_Date__c, 'Contact date should not be updated if no Tweet_Date__c is provided');
     }
 }

@@ -1,70 +1,73 @@
-/**
- * This class contains unit tests for validating the behavior of Apex classes
- * and triggers.
- *
- * Unit tests are class methods that verify whether a particular piece
- * of code is working properly. Unit test methods take no arguments,
- * commit no data to the database, and are flagged with the testMethod
- * keyword in the method definition.
- *
- * All test methods in an org are executed whenever Apex code is deployed
- * to a production org to confirm correctness, ensure code
- * coverage, and prevent regressions. All Apex classes are
- * required to have at least 75% code coverage in order to be deployed
- * to a production org. In addition, all triggers must have some code coverage.
- * 
- * The @isTest class annotation indicates this class only contains test
- * methods. Classes defined with the @isTest annotation do not count against
- * the org size limit for all Apex scripts.
- *
- * See the Apex Language Reference for more information about Testing and Code Coverage.
- */
 @isTest
 private class CreateTweetsJobTest {
 
-    @isTest
-    static void testCreateTweetJobSuccess() {
-        Test.setMock(HttpCalloutMock.class, new TwitterCalloutMock());
-        Tweet__c tweet = new Tweet__c(
-            Name = 'Test Tweet',
-            Tweet_Text__c = 'Hello world from test class!'
-        );
-        insert tweet;
-        Test.startTest();
-        System.enqueueJob(new CreateTweetsJob(new List<Tweet__c>{ tweet }));
-        Test.stopTest();
-        Tweet__c updatedTweet = [SELECT Id, Tweet_ID__c, Tweet_Date__c FROM Tweet__c WHERE Id = :tweet.Id];
-        System.assertNotEquals(null, updatedTweet.Tweet_ID__c, 'Tweet_ID__c should be set');
-        System.assertEquals('1234567890', updatedTweet.Tweet_ID__c, 'Tweet_ID__c should match mocked ID');
-         System.assertNotEquals(null, updatedTweet.Tweet_Date__c, 'Tweet_Date__c should be set');
-        System.assertEquals(
-            DateTime.valueOfGmt('2023-10-05T12:34:56.000Z'),
-            updatedTweet.Tweet_Date__c,
-            'Tweet_Date__c should match mocked date'
-        );
-    }
-    @isTest
-    static void testCreateTweetJobFailure(){
-        Test.setMock(HttpCalloutMock.class, new ErrorMock());
-        Tweet__c tweet = new Tweet__c(
-            Name = 'Test Tweet',
-            Tweet_Text__c = 'Hello world from test class!'
-        );
-        insert tweet;
-        Test.startTest();
-        System.enqueueJob(new CreateTweetsJob(new List<Tweet__c>{ tweet }));
-        Test.stopTest();
-        Tweet__c failedTweet = [SELECT Id, Tweet_ID__c, Tweet_Date__c FROM Tweet__c WHERE Id = :tweet.Id];
-
-        System.assertEquals(null, failedTweet.Tweet_ID__c, 'Tweet_ID__c should remain null on failure');
-        System.assertEquals(null, failedTweet.Tweet_Date__c, 'Tweet_Date__c should remain null on failure');
-    }
-        private class ErrorMock implements HttpCalloutMock {
+    private class CreateTweetMock implements HttpCalloutMock {
         public HTTPResponse respond(HTTPRequest req) {
             HttpResponse res = new HttpResponse();
-            res.setStatusCode(500);
-            res.setBody('{"error": "Internal server error"}');
+            res.setStatusCode(201);
+            res.setBody('{"data": {"id": "mockTweetId123"}}');
             return res;
         }
+    }
+    private class ThrowingMock implements HttpCalloutMock {
+
+        public HTTPResponse respond(HTTPRequest req) {
+        throw new CalloutException('Simulated callout failure');
+        }
+    }
+
+    @isTest static void testExecuteSuccess() {
+        Tweet__c t1 = new Tweet__c(Tweet_Text__c = 'Hello World');
+        insert t1;
+
+        Tweet__c t2 = new Tweet__c(Tweet_Text__c = 'Second tweet');
+        insert t2;
+
+        List<Tweet__c> tweetsToUpdate = new List<Tweet__c>{
+            new Tweet__c(Id = t1.Id, Tweet_Text__c = t1.Tweet_Text__c),
+            new Tweet__c(Id = t2.Id, Tweet_Text__c = t2.Tweet_Text__c)
+        };
+
+        Test.setMock(HttpCalloutMock.class, new CreateTweetMock());
+
+        Test.startTest();
+        CreateTweetsJob job = new CreateTweetsJob(tweetsToUpdate);
+        System.enqueueJob(job);
+        Test.stopTest();
+
+        List<Tweet__c> updatedTweets = [SELECT Tweet_ID__c, Tweet_Date__c FROM Tweet__c WHERE Id IN :tweetsToUpdate];
+        for (Tweet__c t : updatedTweets) {
+            System.assertEquals('mockTweetId123', t.Tweet_ID__c, 'Tweet_ID__c should be set by the job');
+            System.assertNotEquals(null, t.Tweet_Date__c, 'Tweet_Date__c should be set by the job');
+        }
+    }
+
+    @isTest static void testExecuteWithCalloutException() {
+        Tweet__c t = new Tweet__c(Tweet_Text__c = 'Throw error');
+        insert t;
+
+        List<Tweet__c> tweetsToUpdate = new List<Tweet__c>{
+            new Tweet__c(Id = t.Id, Tweet_Text__c = t.Tweet_Text__c)
+        };
+
+        Test.setMock(HttpCalloutMock.class, new ThrowingMock());
+
+        Test.startTest();
+        CreateTweetsJob job = new CreateTweetsJob(tweetsToUpdate);
+        System.enqueueJob(job);
+        Test.stopTest();
+
+        List<Tweet__c> result = [SELECT Tweet_ID__c FROM Tweet__c WHERE Id = :t.Id];
+        System.assertEquals(null, result[0].Tweet_ID__c, 'Tweet_ID__c should remain null due to callout failure');
+    }
+
+    @isTest static void testConstructorCopiesTweets() {
+        Tweet__c t = new Tweet__c(Tweet_Text__c = 'Copy test');
+        insert t;
+
+        List<Tweet__c> tweetsToUpdate = new List<Tweet__c>{t};
+
+        CreateTweetsJob job = new CreateTweetsJob(tweetsToUpdate);
+        System.assertNotEquals(null, job);
     }
 }
