@@ -43,25 +43,8 @@ public with sharing class TweetController {
         for (TweetWrapper tweet : tweets) {
         Tweet__c existing = existingTweetsMap.get(tweet.id);
 
-	Datetime tweetDate;
-	try {
-    	tweetDate = Datetime.valueOfGmt(tweet.createdAt.replace('T', ' ').replace('Z', ''));
-	} catch (Exception e) {
-        LogService.logError(e, 'Could not set date', 'TweetController');
-    	throw new AuraHandledException('Invalid tweet date: ' + tweet.createdAt);
-	}
-
-        if (existing != null) {
-            Boolean needsUpdate = (
-                existing.Tweet_Text__c != tweet.text ||
-                existing.Tweet_Date__c != tweetDate
-            );
-            if (needsUpdate) {
-                existing.Tweet_Text__c = tweet.text;
-                existing.Tweet_Date__c = tweetDate;
-                tweetsToUpdate.add(existing);
-            }
-        } else {
+	    Datetime tweetDate=DateTime.now();
+        if (existing == null) {
             Tweet__c newTweet = new Tweet__c();
             newTweet.Contact__c = contact.Id;
             newTweet.Tweet_ID__c = tweet.id;
@@ -70,11 +53,9 @@ public with sharing class TweetController {
             toInsert.add(newTweet);
         }
     }
-    if (!tweetsToUpdate.isEmpty()) {
-        update tweetsToUpdate;
-    }
     if (!toInsert.isEmpty()) {
         insert toInsert;
+        getTweetsByContact(contactId);
     }
         return toInsert.size() + ' new, ' + tweetsToUpdate.size() + ' updated tweet(s) synced.';
     }
@@ -92,7 +73,6 @@ public with sharing class TweetController {
         		TweetWrapper tw = new TweetWrapper();
         		tw.id = (String) t.get('id');
         		tw.text = (String) t.get('text');
-        		tw.createdAt = (String) t.get('created_at');
         		result.add(tw);
     }
 
@@ -107,6 +87,7 @@ public with sharing class TweetController {
             WHERE Id = :tweetId
             LIMIT 1
         ];
+        TwitterService.deleteTweet(tweet.Tweet_ID__c);
         delete tweet;
     }
 

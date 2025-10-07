@@ -1,11 +1,12 @@
 <template>
         <lightning-card title="Tweets">
-            <lightning-button
+            <div class="slds-p-bottom_medium"><lightning-button
         label="Sync Tweets"
         onclick={handleSync}
         variant="brand"
-        class="slds-m-bottom_medium">
-        </lightning-button>
+        class="slds-p-around_small">
+
+        </lightning-button></div>
         <template if:true={visibleTweets}>
             <lightning-datatable
                 key-field="Id"

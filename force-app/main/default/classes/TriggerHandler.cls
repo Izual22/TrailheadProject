@@ -1,5 +1,5 @@
 public with sharing class TriggerHandler {
-    public static void handleBeforeInsert(List<Tweet__c> newTweets) {
+    public static void handleAfterInsert(List<Tweet__c> newTweets) {
     Map<Id, DateTime> latestTweetDateByContact = new Map<Id, DateTime>();
     List<String> tweetTexts = new List<String>();
 
@@ -29,18 +29,6 @@ public with sharing class TriggerHandler {
         }
         if (!newTweets.isEmpty()) {
             System.enqueueJob(new CreateTweetsJob(newTweets));
-        }
-    }
-    public static void handleAfterDelete(List<Tweet__c> oldTweets) {
-        List<String> tweetIds = new List<String>();
-        for (Tweet__c t : oldTweets) {
-            if (t.Tweet_ID__c != null) {
-                tweetIds.add(t.Tweet_ID__c);
-            }
-        }
-
-        if (!tweetIds.isEmpty()) {
-            System.enqueueJob(new DeleteTweetsJob(tweetIds));
         }
     }
 }
