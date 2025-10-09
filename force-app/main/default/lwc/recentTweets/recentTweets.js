@@ -73,8 +73,8 @@ totalPages = 1;
             const row = event.detail.row;
             if(actionName === 'delete'){
                 deleteTweet({ tweetId: row.Id })
-    .then(() => {
-        this.dispatchEvent(
+            .then(() => {
+            this.dispatchEvent(
             new ShowToastEvent({
                 title: 'Success',
                 message: 'Tweet deleted',
